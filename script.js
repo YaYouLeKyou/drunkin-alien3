@@ -62,7 +62,7 @@ const pipeGap = 270;
 const pipeLoc = () => Math.random() * (canvas.height - (pipeGap - pipeWidth) - pipeWidth);
 
 // --- Game state ---
-let index = 0, bestScore = 0, currentScore = 0, currentKills = 0, bestKills = 0, bossMode = false, bossEntryDelay = 0, pipesEntered = 0;
+let index = 0, bestScore = 0, currentScore = 0, currentKills = 0, bestKills = 0, bossMode = false, bossEntryDelay = 0, pipesEntered = 0, postBossDelayActive = false, bossDefeated = false;
 let pipes = [], flight, flyHeight, isThrusting = false, enemies = [], shots = [], items = [], particles = [];
 const shotSpeed = 10;
 let currentPowerUp = 'default';
@@ -108,7 +108,7 @@ function spawnBoss() {
     y: canvas.height, // Start from bottom
     width: 150,
     height: 150,
-    hp: 100,
+    hp: 3,
     maxHp: 100,
     vy: -1, // Move upwards
     shootTimer: 120, // Shoots every 2 seconds
@@ -138,6 +138,8 @@ function setup() {
   bossMode = false;
   bossEntryDelay = 0;
   pipesEntered = 0;
+  postBossDelayActive = false;
+  bossDefeated = false;
 }
 
 // --- Spawn functions ---
@@ -238,7 +240,11 @@ function render() {
         if (boss.hp <= 0) {
           createExplosion(boss.x + boss.width / 2, boss.y + boss.height / 2, 50);
           boss = null;
-          currentScore += 50;
+          bossMode = false;
+          postBossDelayActive = true;
+          bossEntryDelay = 5 * 60;
+          pipesEntered = 0;
+          bossDefeated = true;
         }
         continue;
       }
@@ -332,7 +338,17 @@ function render() {
 
       boss.shootTimer--;
       if (boss.shootTimer <= 0) {
-        bossShots.push({ x: boss.x, y: boss.y + boss.height / 2, width: 15, height: 15, vx: -3, vy: 1 });
+        const targetX = cTenth + size[0] / 2;
+        const targetY = flyHeight + size[1] / 2;
+        const bossShotX = boss.x;
+        const bossShotY = boss.y + boss.height / 2;
+        const dx = targetX - bossShotX;
+        const dy = targetY - bossShotY;
+        const angle = Math.atan2(dy, dx);
+        const bossShotSpeed = 5; // Adjust as needed
+        const vx = Math.cos(angle) * bossShotSpeed;
+        const vy = Math.sin(angle) * bossShotSpeed;
+        bossShots.push({ x: boss.x, y: boss.y + boss.height / 2, width: 15, height: 15, vx: vx, vy: vy });
         boss.shootTimer = 120;
       }
 
@@ -349,15 +365,35 @@ function render() {
       }
     }
 
-    // If bossMode is active and boss is not yet spawned, spawn it
-    if (bossMode && !boss) {
+    // If bossMode is active and boss is not yet spawned, spawn it or handle post-boss delay
+    // Handle initial boss spawn
+    if (currentScore === 5 && !bossMode && !postBossDelayActive && !bossDefeated) {
+      bossMode = true;
+      bossEntryDelay = 60; // Initial boss entry delay
+    }
+
+    // Handle boss entry animation
+    if (bossMode && !boss && bossEntryDelay > 0) {
+      bossEntryDelay--;
+      // Keep existing pipes and enemies moving until off-screen
+      pipes = pipes.filter(pipe => pipe[0] + pipeWidth > 0);
+      enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
+      if (bossEntryDelay === 0) {
+        spawnBoss();
+      }
+    }
+
+    // Handle post-boss delay
+    if (postBossDelayActive) {
       if (bossEntryDelay > 0) {
         bossEntryDelay--;
         // Keep existing pipes and enemies moving until off-screen
         pipes = pipes.filter(pipe => pipe[0] + pipeWidth > 0);
         enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
-      } else if (currentScore >= 5) { // Boss spawns after delay AND score is 5 or more
-        spawnBoss();
+      } else {
+        postBossDelayActive = false;
+        pipesEntered = 0; // Allow pipes to start spawning again
+        pipes = Array(3).fill().map((_, i) => [canvas.width + i * (pipeGap + pipeWidth), pipeLoc()]);
       }
     }
 
@@ -481,8 +517,8 @@ function render() {
       ctx.drawImage(alienimg, 409, 250 - pipe[1], pipeWidth, pipe[1], pipe[0], 0, pipeWidth, pipe[1]);
       ctx.drawImage(alienimg, 413 + pipeWidth, 108, pipeWidth, canvas.height - pipe[1] + pipeGap, pipe[0], pipe[1] + pipeGap, pipeWidth, canvas.height - pipe[1] + pipeGap);
 
-      // Only add new pipes if not in boss mode and less than 5 pipes have entered
-      if (!bossMode && pipesEntered < 5 && pipe[0] <= -pipeWidth) {
+      // Only add new pipes if not in boss mode and less than 5 pipes have entered (or if boss is defeated)
+      if (!bossMode && !postBossDelayActive && (bossDefeated || pipesEntered < 5) && pipe[0] <= -pipeWidth) {
         currentScore++;
         pipesEntered++;
         bestScore = Math.max(bestScore, currentScore);
@@ -494,7 +530,7 @@ function render() {
 
         // Spawn power-up every 30 points
         if (currentScore > 0 && currentScore % 30 === 0) {
-          spawnPowerUp();
+          setTimeout(spawnPowerUp, 1000);
         }
 
         // Speed increase every 20 points
@@ -516,7 +552,7 @@ function render() {
   }
 
   // Enemy spawn
-  if (gamePlaying && !bossMode) {
+  if (gamePlaying && !bossMode && !postBossDelayActive) {
     enemySpawnTimer--;
     if (enemySpawnTimer <= 0) {
       spawnEnemy(getEnemyType(currentScore));
