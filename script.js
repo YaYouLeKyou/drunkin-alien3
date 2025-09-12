@@ -63,6 +63,8 @@ const pipeLoc = () => Math.random() * (canvas.height - (pipeGap - pipeWidth) - p
 
 // --- Game state ---
 let index = 0, bestScore = 0, currentScore = 0, currentKills = 0, bestKills = 0, bossMode = false, bossEntryDelay = 0, pipesEntered = 0, postBossDelayActive = false, bossDefeated = false;
+let boss2Mode = false, boss2EntryDelay = 0, postBoss2DelayActive = false, boss2Defeated = false; // New
+let boss3Mode = false, boss3EntryDelay = 0, postBoss3DelayActive = false, boss3Defeated = false; // New
 let pipes = [], flight, flyHeight, isThrusting = false, enemies = [], shots = [], items = [], particles = [];
 const shotSpeed = 10;
 let currentPowerUp = 'default';
@@ -70,6 +72,10 @@ const powerUpTypes = ['double', 'spread', 'explosive', 'chain', 'bouncing'];
 let powerUpStartScore = -1;
 let boss = null;
 let bossShots = [];
+let boss2 = null; // New
+let boss2Shots = []; // New
+let boss3 = null; // New
+let boss3Shots = []; // New
 
 // --- Power-up spawn timer ---
 function spawnPowerUp() {
@@ -111,9 +117,43 @@ function spawnBoss() {
     hp: 3,
     maxHp: 100,
     vy: -1, // Move upwards
-    shootTimer: 120, // Shoots every 2 seconds
+    shootTimer: 240, // Shoots every 4 seconds (initial delay)
     enemySpawnTimer: 180, // Spawns enemy every 3 seconds (3 * 60 frames)
     phase: 'entry', // New phase for boss entry
+  };
+}
+
+// --- Boss 2 spawn ---
+function spawnBoss2() {
+  boss2 = {
+    x: canvas.width, // Start off-screen right
+    y: canvas.height, // Start from bottom
+    width: 150,
+    height: 150,
+    hp: 5, // Slightly more HP for boss2
+    maxHp: 100,
+    vx: -2, // Move left during entry
+    vy: -1, // Move upwards
+    shootTimer: 210, // Initial delay for first shot (90 + 120 frames for 2 seconds)
+    enemySpawnTimer: 120, // Spawns enemy2 more frequently
+    phase: 'entry',
+  };
+}
+
+// --- Boss 3 spawn ---
+function spawnBoss3() {
+  boss3 = {
+    x: canvas.width, // Start off-screen right
+    y: canvas.height, // Start from bottom
+    width: 150,
+    height: 150,
+    hp: 7, // Slightly more HP for boss3
+    maxHp: 100,
+    vx: -2, // Move left during entry
+    vy: -1, // Move upwards
+    shootTimer: 210, // Initial delay for first shot (90 + 120 frames for 2 seconds)
+    enemySpawnTimer: 120, // Spawns enemy3 more frequently
+    phase: 'entry',
   };
 }
 
@@ -132,6 +172,10 @@ function setup() {
   particles = [];
   boss = null;
   bossShots = [];
+  boss2 = null; // New
+  boss2Shots = []; // New
+  boss3 = null; // New
+  boss3Shots = []; // New
   enemySpawnTimer = effectiveEnemyBaseInterval;
   showSpeedUpAd = false;
   speedUpAdTimer = 0;
@@ -140,6 +184,14 @@ function setup() {
   pipesEntered = 0;
   postBossDelayActive = false;
   bossDefeated = false;
+  boss2Mode = false; // New
+  boss2EntryDelay = 0; // New
+  postBoss2DelayActive = false; // New
+  boss2Defeated = false; // New
+  boss3Mode = false; // New
+  boss3EntryDelay = 0; // New
+  postBoss3DelayActive = false; // New
+  boss3Defeated = false; // New
 }
 
 // --- Spawn functions ---
@@ -245,6 +297,42 @@ function render() {
           bossEntryDelay = 5 * 60;
           pipesEntered = 0;
           bossDefeated = true;
+        }
+        continue;
+      }
+
+      // Shot collision with boss2
+      if (boss2 && shot.x < boss2.x + boss2.width && shot.x + shot.width > boss2.x && shot.y < boss2.y + boss2.height && shot.y + shot.height > boss2.y) {
+        shots.splice(i, 1);
+        boss2.hp--;
+        createExplosion(shot.x, shot.y);
+
+        if (boss2.hp <= 0) {
+          createExplosion(boss2.x + boss2.width / 2, boss2.y + boss2.height / 2, 50);
+          boss2 = null;
+          boss2Mode = false;
+          postBoss2DelayActive = true;
+          boss2EntryDelay = 5 * 60; // 5-second delay after boss2 defeat
+          pipesEntered = 0; // Reset pipesEntered for next phase
+          boss2Defeated = true;
+        }
+        continue;
+      }
+
+      // Shot collision with boss3
+      if (boss3 && shot.x < boss3.x + boss3.width && shot.x + shot.width > boss3.x && shot.y < boss3.y + boss3.height && shot.y + shot.height > boss3.y) {
+        shots.splice(i, 1);
+        boss3.hp--;
+        createExplosion(shot.x, shot.y);
+
+        if (boss3.hp <= 0) {
+          createExplosion(boss3.x + boss3.width / 2, boss3.y + boss3.height / 2, 50);
+          boss3 = null;
+          boss3Mode = false;
+          postBoss3DelayActive = true;
+          boss3EntryDelay = 5 * 60; // 5-second delay after boss3 defeat
+          pipesEntered = 0; // Reset pipesEntered for next phase
+          boss3Defeated = true;
         }
         continue;
       }
@@ -365,11 +453,143 @@ function render() {
       }
     }
 
+    // Boss 2
+    if (boss2) {
+      if (boss2.phase === 'entry') {
+        boss2.x += boss2.vx;
+        boss2.y += boss2.vy;
+        if (boss2.x <= canvas.width - 150) { // Check if boss has reached its target x position
+          boss2.x = canvas.width - 150; // Snap to position
+          boss2.vx = 0; // Stop horizontal movement
+        }
+        if (boss2.y <= canvas.height / 2 - boss2.height / 2) {
+          boss2.y = canvas.height / 2 - boss2.height / 2;
+          boss2.vy = 2; // Resume normal vertical movement
+        }
+        if (boss2.x === canvas.width - 150 && boss2.y === canvas.height / 2 - boss2.height / 2) {
+          boss2.phase = 'active'; // Transition to active phase once both x and y are in place
+        }
+      } else if (boss2.phase === 'active') {
+        boss2.y += boss2.vy;
+        if (boss2.y + boss2.height > canvas.height || boss2.y < 0) {
+          boss2.vy *= -1;
+        }
+      }
+
+      ctx.drawImage(enemy2Img, boss2.x, boss2.y, boss2.width, boss2.height); // Use enemy2Img
+
+      // Boss 2 health bar
+      ctx.fillStyle = 'red';
+      ctx.fillRect(boss2.x, boss2.y - 20, boss2.width, 10);
+      ctx.fillStyle = 'purple'; // Different color for boss2 health bar
+      ctx.fillRect(boss2.x, boss2.y - 20, boss2.width * (boss2.hp / boss2.maxHp), 10);
+
+      boss2.shootTimer--;
+      if (boss2.shootTimer <= 0) {
+        const targetX = cTenth + size[0] / 2;
+        const targetY = flyHeight + size[1] / 2;
+        const bossShotX = boss2.x;
+        const bossShotY = boss2.y + boss2.height / 2;
+        const dx = targetX - bossShotX;
+        const dy = targetY - bossShotY;
+        const angle = Math.atan2(dy, dx);
+        const bossShotSpeed = 6; // Slightly faster shots for boss2
+        const vx = Math.cos(angle) * bossShotSpeed;
+        const vy = Math.sin(angle) * bossShotSpeed;
+        boss2Shots.push({ x: boss2.x, y: boss2.y + boss2.height / 2, width: 15, height: 15, vx: vx, vy: vy });
+        boss2.shootTimer = 90; // Reset for 1.5 seconds
+      }
+
+      boss2.enemySpawnTimer--;
+      if (boss2.enemySpawnTimer <= 0) {
+        spawnEnemy('enemy2'); // Spawn enemy2
+        boss2.enemySpawnTimer = 120; // Reset for 2 seconds
+      }
+
+      // Player collision with boss2
+      if (cTenth < boss2.x + boss2.width && cTenth + size[0] > boss2.x && flyHeight < boss2.y + boss2.height && flyHeight + size[1] > boss2.y) {
+        gamePlaying = false;
+        setup();
+      }
+    }
+
+    // Boss 3
+    if (boss3) {
+      if (boss3.phase === 'entry') {
+        boss3.x += boss3.vx;
+        boss3.y += boss3.vy;
+        if (boss3.x <= canvas.width - 150) { // Check if boss has reached its target x position
+          boss3.x = canvas.width - 150; // Snap to position
+          boss3.vx = 0; // Stop horizontal movement
+        }
+        if (boss3.y <= canvas.height / 2 - boss3.height / 2) {
+          boss3.y = canvas.height / 2 - boss3.height / 2;
+          boss3.vy = 2; // Resume normal vertical movement
+        }
+        if (boss3.x === canvas.width - 150 && boss3.y === canvas.height / 2 - boss3.height / 2) {
+          boss3.phase = 'active'; // Transition to active phase once both x and y are in place
+        }
+      } else if (boss3.phase === 'active') {
+        boss3.y += boss3.vy;
+        if (boss3.y + boss3.height > canvas.height || boss3.y < 0) {
+          boss3.vy *= -1;
+        }
+      }
+
+      ctx.drawImage(enemy3Img, boss3.x, boss3.y, boss3.width, boss3.height); // Use enemy3Img
+
+      // Boss 3 health bar
+      ctx.fillStyle = 'red';
+      ctx.fillRect(boss3.x, boss3.y - 20, boss3.width, 10);
+      ctx.fillStyle = 'cyan'; // Different color for boss3 health bar
+      ctx.fillRect(boss3.x, boss3.y - 20, boss3.width * (boss3.hp / boss3.maxHp), 10);
+
+      boss3.shootTimer--;
+      if (boss3.shootTimer <= 0) {
+        const targetX = cTenth + size[0] / 2;
+        const targetY = flyHeight + size[1] / 2;
+        const bossShotX = boss3.x;
+        const bossShotY = boss3.y + boss3.height / 2;
+        const dx = targetX - bossShotX;
+        const dy = targetY - bossShotY;
+        const angle = Math.atan2(dy, dx);
+        const bossShotSpeed = 7; // Slightly faster shots for boss3
+        const vx = Math.cos(angle) * bossShotSpeed;
+        const vy = Math.sin(angle) * bossShotSpeed;
+        boss3Shots.push({ x: boss3.x, y: boss3.y + boss3.height / 2, width: 15, height: 15, vx: vx, vy: vy });
+        boss3.shootTimer = 80; // Reset for faster shots
+      }
+
+      boss3.enemySpawnTimer--;
+      if (boss3.enemySpawnTimer <= 0) {
+        spawnEnemy('enemy3'); // Spawn enemy3
+        boss3.enemySpawnTimer = 100; // Reset for faster enemy spawn
+      }
+
+      // Player collision with boss3
+      if (cTenth < boss3.x + boss3.width && cTenth + size[0] > boss3.x && flyHeight < boss3.y + boss3.height && flyHeight + size[1] > boss3.y) {
+        gamePlaying = false;
+        setup();
+      }
+    }
+
     // If bossMode is active and boss is not yet spawned, spawn it or handle post-boss delay
     // Handle initial boss spawn
     if (currentScore === 5 && !bossMode && !postBossDelayActive && !bossDefeated) {
       bossMode = true;
       bossEntryDelay = 60; // Initial boss entry delay
+    }
+
+    // Handle initial boss2 spawn
+    if (currentScore === 10 && !boss2Mode && !postBoss2DelayActive && !boss2Defeated) {
+      boss2Mode = true;
+      boss2EntryDelay = 60; // Initial boss2 entry delay
+    }
+
+    // Handle initial boss3 spawn
+    if (currentScore === 15 && !boss3Mode && !postBoss3DelayActive && !boss3Defeated) {
+      boss3Mode = true;
+      boss3EntryDelay = 60; // Initial boss3 entry delay
     }
 
     // Handle boss entry animation
@@ -380,6 +600,28 @@ function render() {
       enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
       if (bossEntryDelay === 0) {
         spawnBoss();
+      }
+    }
+
+    // Handle boss2 entry animation
+    if (boss2Mode && !boss2 && boss2EntryDelay > 0) {
+      boss2EntryDelay--;
+      // Keep existing pipes and enemies moving until off-screen
+      pipes = pipes.filter(pipe => pipe[0] + pipeWidth > 0);
+      enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
+      if (boss2EntryDelay === 0) {
+        spawnBoss2();
+      }
+    }
+
+    // Handle boss3 entry animation
+    if (boss3Mode && !boss3 && boss3EntryDelay > 0) {
+      boss3EntryDelay--;
+      // Keep existing pipes and enemies moving until off-screen
+      pipes = pipes.filter(pipe => pipe[0] + pipeWidth > 0);
+      enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
+      if (boss3EntryDelay === 0) {
+        spawnBoss3();
       }
     }
 
@@ -394,6 +636,34 @@ function render() {
         postBossDelayActive = false;
         pipesEntered = 0; // Allow pipes to start spawning again
         pipes = Array(3).fill().map((_, i) => [canvas.width + i * (pipeGap + pipeWidth), pipeLoc()]);
+      }
+    }
+
+    // Handle post-boss2 delay
+    if (postBoss2DelayActive) {
+      if (boss2EntryDelay > 0) {
+        boss2EntryDelay--;
+        // Keep existing pipes and enemies moving until off-screen
+        pipes = pipes.filter(pipe => pipe[0] + pipeWidth > 0);
+        enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
+      } else {
+        postBoss2DelayActive = false;
+        pipesEntered = 0; // Allow pipes to start spawning again
+        pipes = Array(3).fill().map((_, i) => [canvas.width + i * (pipeGap + pipeWidth), pipeLoc()]); // Re-initialize pipes
+      }
+    }
+
+    // Handle post-boss3 delay
+    if (postBoss3DelayActive) {
+      if (boss3EntryDelay > 0) {
+        boss3EntryDelay--;
+        // Keep existing pipes and enemies moving until off-screen
+        pipes = pipes.filter(pipe => pipe[0] + pipeWidth > 0);
+        enemies = enemies.filter(enemy => enemy.x + size[0] > 0);
+      } else {
+        postBoss3DelayActive = false;
+        pipesEntered = 0; // Allow pipes to start spawning again
+        pipes = Array(3).fill().map((_, i) => [canvas.width + i * (pipeGap + pipeWidth), pipeLoc()]); // Re-initialize pipes
       }
     }
 
@@ -413,6 +683,81 @@ function render() {
 
       if (shot.x < 0) {
         bossShots.splice(i, 1);
+        continue;
+      }
+
+      if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
+        gamePlaying = false;
+        setup();
+      }
+    }
+
+    // Boss 2 shots
+    for (let i = boss2Shots.length - 1; i >= 0; i--) {
+      const shot = boss2Shots[i];
+      shot.x += shot.vx;
+      shot.y += shot.vy;
+
+      ctx.fillStyle = 'purple'; // Different color for boss2 shots
+      ctx.beginPath();
+      ctx.arc(shot.x + shot.width / 2, shot.y + shot.height / 2, shot.width / 2, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = 'darkviolet';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      if (shot.x < 0) {
+        boss2Shots.splice(i, 1);
+        continue;
+      }
+
+      if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
+        gamePlaying = false;
+        setup();
+      }
+    }
+
+    // Boss 3 shots
+    for (let i = boss3Shots.length - 1; i >= 0; i--) {
+      const shot = boss3Shots[i];
+      shot.x += shot.vx;
+      shot.y += shot.vy;
+
+      ctx.fillStyle = 'cyan'; // Different color for boss3 shots
+      ctx.beginPath();
+      ctx.arc(shot.x + shot.width / 2, shot.y + shot.height / 2, shot.width / 2, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = 'darkcyan';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      if (shot.x < 0) {
+        boss3Shots.splice(i, 1);
+        continue;
+      }
+
+      if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
+        gamePlaying = false;
+        setup();
+      }
+    }
+
+    // Boss 3 shots
+    for (let i = boss3Shots.length - 1; i >= 0; i--) {
+      const shot = boss3Shots[i];
+      shot.x += shot.vx;
+      shot.y += shot.vy;
+
+      ctx.fillStyle = 'cyan'; // Different color for boss3 shots
+      ctx.beginPath();
+      ctx.arc(shot.x + shot.width / 2, shot.y + shot.height / 2, shot.width / 2, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = 'darkcyan';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      if (shot.x < 0) {
+        boss3Shots.splice(i, 1);
         continue;
       }
 
@@ -518,7 +863,7 @@ function render() {
       ctx.drawImage(alienimg, 413 + pipeWidth, 108, pipeWidth, canvas.height - pipe[1] + pipeGap, pipe[0], pipe[1] + pipeGap, pipeWidth, canvas.height - pipe[1] + pipeGap);
 
       // Only add new pipes if not in boss mode and less than 5 pipes have entered (or if boss is defeated)
-      if (!bossMode && !postBossDelayActive && (bossDefeated || pipesEntered < 5) && pipe[0] <= -pipeWidth) {
+      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss2DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 5) && pipe[0] <= -pipeWidth) {
         currentScore++;
         pipesEntered++;
         bestScore = Math.max(bestScore, currentScore);
