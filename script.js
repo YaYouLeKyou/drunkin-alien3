@@ -121,8 +121,8 @@ function spawnBoss() {
     y: canvas.height, // Start from bottom
     width: 150,
     height: 150,
-    hp: 3,
-    maxHp: 100,
+    hp: 50,
+    maxHp: 50,
     vy: -1, // Move upwards
     shootTimer: 240, // Shoots every 4 seconds (initial delay)
     enemySpawnTimer: 180, // Spawns enemy every 3 seconds (3 * 60 frames)
@@ -133,12 +133,12 @@ function spawnBoss() {
 // --- Boss 2 spawn ---
 function spawnBoss2() {
   boss2 = {
-    x: canvas.width, // Start off-screen right
+    x: canvas.width + 150, // Start off-screen right (added boss2.width)
     y: canvas.height, // Start from bottom
     width: 150,
     height: 150,
-    hp: 5, // Slightly more HP for boss2
-    maxHp: 100,
+    hp: 50,
+    maxHp: 50,
     vx: -2, // Move left during entry
     vy: -1, // Move upwards
     shootTimer: 210, // Initial delay for first shot (90 + 120 frames for 2 seconds)
@@ -154,8 +154,8 @@ function spawnBoss3() {
     y: canvas.height, // Start from bottom
     width: 150,
     height: 150,
-    hp: 7, // Slightly more HP for boss3
-    maxHp: 100,
+    hp: 50,
+    maxHp: 50,
     vx: -2, // Move left during entry
     vy: -1, // Move upwards
     shootTimer: 210, // Initial delay for first shot (90 + 120 frames for 2 seconds)
@@ -469,7 +469,7 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 4; // Adjust as needed
+        const bossShotSpeed = 3; // Adjust as needed
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         bossShots.push({ x: boss.x, y: boss.y + boss.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -494,7 +494,7 @@ function render() {
       if (boss2.phase === 'entry') {
         boss2.x += boss2.vx;
         boss2.y += boss2.vy;
-        if (boss2.x <= canvas.width - 150) { // Check if boss has reached its target x position
+        if (boss2.x <= canvas.width - boss2.width - 50) { // Check if boss has reached its target x position
           boss2.x = canvas.width - 150; // Snap to position
           boss2.vx = 0; // Stop horizontal movement
         }
@@ -529,7 +529,7 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 5; // Slightly faster shots for boss2
+        const bossShotSpeed = 3; // Slightly faster shots for boss2
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         boss2Shots.push({ x: boss2.x, y: boss2.y + boss2.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -589,7 +589,7 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 5; // Slightly faster shots for boss3
+        const bossShotSpeed = 3; // Slightly faster shots for boss3
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         boss3Shots.push({ x: boss3.x, y: boss3.y + boss3.height / 2, width: 15, height: 15, vx: vx, vy: vy });
