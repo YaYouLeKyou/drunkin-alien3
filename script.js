@@ -88,6 +88,13 @@ let boss3 = null; // New
 let boss3Shots = []; // New
 let boss3ShotCount = 0;
 let lastAlternatingEnemyType = 'enemy1'; // New global variable
+let firstClickDone = false; // New flag for first click
+let messageLine1 = ''; // New variable for displaying messages - first line
+let messageLine2 = ''; // New variable for displaying messages - second line
+let showMessage = false; // New flag to control message display
+let messageTimer = 0; // New timer for message display
+let messageColor = 'black'; // New variable for message color
+let fireworks = []; // New array for fireworks particles
 
 // --- Power-up spawn timer ---
 function spawnPowerUp() {
@@ -133,6 +140,32 @@ function createExplosion(x, y, count = 10) {
       vy: (Math.random() - 0.5) * 4,
       lifespan: 30,
       size: Math.random() * 3 + 1,
+    });
+  }
+}
+
+// --- Message display function ---
+function showMessageWithDuration(line1, line2, color, duration) {
+  messageLine1 = line1;
+  messageLine2 = line2;
+  messageColor = color;
+  showMessage = true;
+  messageTimer = duration;
+}
+
+// --- Fireworks function ---
+function createFireworks(x, y, count = 30) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 2;
+    fireworks.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      lifespan: 60,
+      size: Math.random() * 4 + 2,
+      color: `hsl(${Math.random() * 360}, 100%, 50%)`,
     });
   }
 }
@@ -237,6 +270,10 @@ function setup() {
   lastAlternatingEnemyType = 'enemy1'; // Initialize for alternation
   hasShield = false;
   currentPowerUp = 'default';
+  firstClickDone = false; // Reset for new game
+  showMessage = false; // Reset message display
+  messageTimer = 0; // Reset message timer
+  fireworks = []; // Clear fireworks
 }
 
 // --- Spawn functions ---
@@ -395,12 +432,17 @@ function render() {
 
         if (boss.hp <= 0) {
           createExplosion(boss.x + boss.width / 2, boss.y + boss.height / 2, 50);
+          createFireworks(boss.x + boss.width / 2, boss.y + boss.height / 2, 100); // Fireworks!
           boss = null;
           bossMode = false;
           postBossDelayActive = true;
           bossEntryDelay = 5 * 60;
           pipesEntered = 0;
           bossDefeated = true;
+          showMessageWithDuration("Congratulation!", "", "gold", 120); // 2 seconds
+          setTimeout(() => {
+            showMessageWithDuration("Level 2", "Start!", "white", 120); // 2 seconds after "Congratulation!"
+          }, 2000); // Delay for 2 seconds
         }
         continue;
       }
@@ -419,12 +461,17 @@ function render() {
 
         if (boss2.hp <= 0) {
           createExplosion(boss2.x + boss2.width / 2, boss2.y + boss2.height / 2, 50);
+          createFireworks(boss2.x + boss2.width / 2, boss2.y + boss2.height / 2, 100); // Fireworks!
           boss2 = null;
           boss2Mode = false;
           postBoss2DelayActive = true;
           boss2EntryDelay = 5 * 60; // 5-second delay after boss2 defeat
           pipesEntered = 0; // Reset pipesEntered for next phase
           boss2Defeated = true;
+          showMessageWithDuration("Congratulation!", "", "gold", 120); // 2 seconds
+          setTimeout(() => {
+            showMessageWithDuration("Level 3", "Start!", "white", 120); // 2 seconds after "Congratulation!"
+          }, 2000); // Delay for 2 seconds
         }
         continue;
       }
@@ -443,12 +490,20 @@ function render() {
 
         if (boss3.hp <= 0) {
           createExplosion(boss3.x + boss3.width / 2, boss3.y + boss3.height / 2, 50);
+          createFireworks(boss3.x + boss3.width / 2, boss3.y + boss3.height / 2, 100); // Fireworks!
           boss3 = null;
           boss3Mode = false;
           postBoss3DelayActive = true;
           boss3EntryDelay = 5 * 60; // 5-second delay after boss3 defeat
           pipesEntered = 0; // Reset pipesEntered for next phase
           boss3Defeated = true;
+          showMessageWithDuration("Congratulation!", "", "gold", 120); // 2 seconds
+          setTimeout(() => {
+            showMessageWithDuration("You are", "the boss!", "white", 120); // 2 seconds after "Congratulation!"
+          }, 2000); // Delay for 2 seconds
+          setTimeout(() => {
+            showMessageWithDuration("To infinity", "and beyond!", "white", 180); // 3 seconds after "You are the boss!"
+          }, 4000); // Delay for 4 seconds
         }
         continue;
       }
@@ -1036,12 +1091,7 @@ function render() {
         e.x += e.vx;
         e.y += e.vy;
         if (e.y <= 0 || e.y + size[1] >= canvas.height) e.vy *= -1;
-        e.rotation = (e.rotation + 0.05) % (2 * Math.PI);
-        ctx.save();
-        ctx.translate(e.x + size[0] / 2, e.y + size[1] / 2);
-        ctx.rotate(e.rotation);
-        ctx.drawImage(enemy2Img, 0, 0, enemy2Img.width, enemy2Img.height, -size[0] / 2, -size[1] / 2, size[0], size[0] * (enemy2Img.height / enemy2Img.width));
-        ctx.restore();
+        ctx.drawImage(enemy2Img, 0, 0, enemy2Img.width, enemy2Img.height, e.x, e.y, size[0], size[0] * (enemy2Img.height / enemy2Img.width));
       } else if (e.type === 'enemy3') {
         e.x += e.vx;
         e.y += e.vy;
@@ -1096,6 +1146,42 @@ function render() {
     speedUpAdTimer--;
   }
 
+  // Display messages
+  if (showMessage && messageTimer > 0) {
+    ctx.textAlign = "center";
+    ctx.font = "bold 50px Arial";
+    ctx.fillStyle = messageColor;
+    if (messageLine2) {
+      ctx.fillText(messageLine1, canvas.width / 2, canvas.height / 2 - 20); // Adjusted Y for line1
+      ctx.fillText(messageLine2, canvas.width / 2, canvas.height / 2 + 40); // Adjusted Y for line2
+    } else {
+      ctx.fillText(messageLine1, canvas.width / 2, canvas.height / 2); // Centered if only one line
+    }
+    messageTimer--;
+    if (messageTimer === 0) {
+      showMessage = false;
+    }
+  }
+
+  // Update and draw fireworks
+  for (let i = fireworks.length - 1; i >= 0; i--) {
+    const p = fireworks[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1; // Gravity for fireworks
+    p.lifespan--;
+
+    if (p.lifespan <= 0) {
+      fireworks.splice(i, 1);
+      continue;
+    }
+
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (p.lifespan / 60), 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
   requestAnimationFrame(render);
 }
 
@@ -1137,6 +1223,10 @@ function fireShot() {
 
 // --- Controls ---
 document.addEventListener("mousedown", () => {
+  if (!firstClickDone) {
+    firstClickDone = true;
+    showMessageWithDuration("Level 1", "Start!", "white", 120); // Display for 2 seconds
+  }
   if (gamePlaying) {
     isShooting = true;
     fireShot(); // Fire immediately on click
@@ -1149,6 +1239,10 @@ document.addEventListener("mouseup", () => {
   isThrusting = false;
 });
 document.addEventListener("touchstart", () => {
+  if (!firstClickDone) {
+    firstClickDone = true;
+    showMessageWithDuration("Level 1", "Start!", "white", 120); // Display for 2 seconds
+  }
   if (gamePlaying) {
     isShooting = true;
     fireShot(); // Fire immediately on touch
