@@ -65,14 +65,18 @@ const pipeWidth = 50;
 const pipeGap = 270;
 const pipeLoc = () => Math.random() * (canvas.height - (pipeGap - pipeWidth) - pipeWidth);
 
+// --- Item settings ---
+const itemWidth = 30;
+const itemHeight = 30;
+
 // --- Game state ---
-let index = 0, bestScore = 0, currentScore = 0, currentKills = 0, bestKills = 0, bossMode = false, bossEntryDelay = 0, pipesEntered = 0, postBossDelayActive = false, bossDefeated = false;
+let index = 0, bestScore = 0, currentScore = 0, currentKills = 0, bestKills = 0, bossMode = false, bossEntryDelay = 0, pipesEntered = 0, postBossDelayActive = false, bossDefeated = false, hasShield = false;
 let boss2Mode = false, boss2EntryDelay = 0, postBoss2DelayActive = false, boss2Defeated = false; // New
 let boss3Mode = false, boss3EntryDelay = 0, postBoss3DelayActive = false, boss3Defeated = false; // New
 let pipes = [], flight, flyHeight, isThrusting = false, enemies = [], shots = [], items = [], particles = [];
 const shotSpeed = 10;
 let currentPowerUp = 'default';
-const powerUpTypes = ['double', 'spread', 'explosive', 'chain', 'bouncing'];
+const powerUpTypes = ['double', 'spread', 'bouncing'];
 let powerUpStartScore = -1;
 let boss = null;
 let bossShots = [];
@@ -83,12 +87,40 @@ let boss2ShotCount = 0;
 let boss3 = null; // New
 let boss3Shots = []; // New
 let boss3ShotCount = 0;
+let lastAlternatingEnemyType = 'enemy1'; // New global variable
 
 // --- Power-up spawn timer ---
 function spawnPowerUp() {
   const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
-  const y = Math.random() * (canvas.height - 20);
-  items.push({ x: canvas.width, y, type, width: 20, height: 20 });
+  const y = Math.random() * (canvas.height - itemHeight); // Random vertical position
+  items.push({ x: canvas.width, y, type, width: itemWidth, height: itemHeight }); // Spawn from the right edge
+}
+
+// --- Weapon Item spawn ---
+function spawnWeaponItem() {
+  const middleY = canvas.height / 2;
+  const halfItemHeight = itemHeight / 2;
+  const verticalOffset = 70; // How far from the absolute middle the "high" or "low" can be
+
+  let y;
+  if (Math.random() < 0.5) { // Randomly choose high or low
+    // High in the middle range
+    y = middleY - verticalOffset - halfItemHeight - (Math.random() * verticalOffset);
+  } else {
+    // Low in the middle range
+    y = middleY + verticalOffset - halfItemHeight + (Math.random() * verticalOffset);
+  }
+
+  // Ensure it's within canvas bounds
+  y = Math.max(itemHeight, Math.min(y, canvas.height - itemHeight * 2)); // Keep it a bit away from edges
+
+  // For now, let's make it grant a random power-up type
+  const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+  items.push({ x: canvas.width, y, type: type, width: itemWidth, height: itemHeight });
+}
+
+function spawnShieldItem(x, y) {
+  items.push({ x, y, type: 'shield', width: itemWidth, height: itemHeight });
 }
 
 // --- Explosion function ---
@@ -202,12 +234,16 @@ function setup() {
   boss1ShotCount = 0;
   boss2ShotCount = 0;
   boss3ShotCount = 0;
+  lastAlternatingEnemyType = 'enemy1'; // Initialize for alternation
+  hasShield = false;
 }
 
 // --- Spawn functions ---
 function spawnEnemy(type) {
   if (type === 'enemy1') {
-    const y = Math.random() * (canvas.height - size[1]);
+    const minY = canvas.height * 0.25;
+    const maxY = canvas.height * 0.75 - size[1];
+    const y = minY + Math.random() * (maxY - minY);
     const variation = (Math.random() - 0.5) * 1;
     enemies.push({ x: canvas.width, y, type: 'enemy1', speedVariation: variation });
   } else if (type === 'enemy2') {
@@ -220,21 +256,52 @@ function spawnEnemy(type) {
     const vx = -enemySpeed * 0.8;
     const vy = (Math.random() < 0.5 ? -1 : 1) * (Math.random() * 1.5 + 0.8);
     enemies.push({ x: canvas.width, y: Math.random() * (canvas.height - size[1]), vx, vy, type: 'enemy3' });
+  } else if (type === 'enemy4') { // New enemy4
+    const vx = -enemySpeed * 0.9; // Slightly slower than enemy3, faster than enemy1
+    const vy = (Math.random() < 0.5 ? -1 : 1) * (Math.random() * 0.5 + 0.2); // Small diagonal movement
+
+    const possibleYPositions = [
+      0, // Right top
+      canvas.height * 0.25, // Right middle high
+      canvas.height * 0.5 - size[1] / 2, // Middle right
+      canvas.height * 0.75 - size[1], // Right middle down
+      canvas.height - size[1] // Right down
+    ];
+
+    const y = possibleYPositions[Math.floor(Math.random() * possibleYPositions.length)];
+
+    enemies.push({ x: canvas.width, y, type: 'enemy4', vx, vy });
   }
 }
 
 // --- Probabilistic enemy selection ---
 function getEnemyType(score) {
   let r = Math.random() * 100;
+  let chosenType;
+
   if (score < 80) {
     // Early game: mostly enemy1
-    if (r < 90) return 'enemy1';
-    else return 'enemy2';
+    if (r < 90) chosenType = 'enemy1';
+    else chosenType = 'enemy2';
   } else {
-    // Mid/high game: introduce enemy3 gradually
-    if (r < 60) return 'enemy1';
-    else if (r < 85) return 'enemy2';
-    else return 'enemy3';
+    // Mid/high game: introduce enemy3 and enemy4 gradually
+    if (r < 50) chosenType = 'enemy1';
+    else if (r < 75) chosenType = 'enemy2';
+    else if (r < 90) chosenType = 'enemy3';
+    else chosenType = 'enemy4';
+  }
+
+  // Apply alternation if the chosen type is 'enemy1' or 'enemy4'
+  if (chosenType === 'enemy1' || chosenType === 'enemy4') {
+    if (lastAlternatingEnemyType === 'enemy1') {
+      lastAlternatingEnemyType = 'enemy4';
+      return 'enemy4';
+    } else {
+      lastAlternatingEnemyType = 'enemy1';
+      return 'enemy1';
+    }
+  } else {
+    return chosenType; // Return enemy2 or enemy3 as is
   }
 }
 
@@ -250,11 +317,24 @@ function render() {
   // Player
   if (gamePlaying) {
     ctx.drawImage(alienimg, 405, Math.floor(index % 1) * size[0], ...size, cTenth, flyHeight, ...size);
+    if (hasShield) {
+      ctx.beginPath();
+      ctx.arc(cTenth + size[0] / 2, flyHeight + size[1] / 2, size[0] / 2 + 10, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(173, 216, 230, 0.5)';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
     if (isThrusting) flight -= thrustAmount;
     flight += gravity;
     flyHeight = Math.min(flyHeight + flight, canvas.height - size[1]);
     if (flyHeight <= 0 || flyHeight >= canvas.height - size[1]) {
-      gamePlaying = false; setup();
+      if (hasShield) {
+        hasShield = false;
+        flight = jump;
+      } else {
+        gamePlaying = false;
+        setup();
+      }
     }
 
     if (isShooting) {
@@ -279,22 +359,21 @@ function render() {
       }
 
       if (shot.type === 'double') {
-        ctx.fillStyle = 'blue';
+        ctx.fillStyle = '#00BFFF';
       } else if (shot.type === 'spread') {
-        ctx.fillStyle = 'green';
-      } else if (shot.type === 'explosive') {
-        ctx.fillStyle = 'orange';
-      } else if (shot.type === 'chain') {
-        ctx.fillStyle = 'teal';
+        ctx.fillStyle = '#32CD32';
       } else if (shot.type === 'bouncing') {
-        ctx.fillStyle = 'yellow';
+        ctx.fillStyle = '#FFFF00';
       } else {
-        ctx.fillStyle = "red";
+        ctx.fillStyle = "#FF4500";
       }
 
       ctx.beginPath();
       ctx.arc(shot.x + shot.width / 2, shot.y + shot.height / 2, shot.width / 2, 0, 2 * Math.PI);
       ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
       if (shot.x > canvas.width) {
         shots.splice(i, 1);
@@ -383,54 +462,15 @@ function render() {
         ) {
           createExplosion(enemy.x + size[0] / 2, enemy.y + size[1] / 2);
 
-          if (shot.type === 'explosive') {
-            // Explode
-            for (let k = enemies.length - 1; k >= 0; k--) {
-              const otherEnemy = enemies[k];
-              if (k === j) continue;
-              const dist = Math.hypot(shot.x - otherEnemy.x, shot.y - otherEnemy.y);
-              if (dist < 50) {
-                createExplosion(otherEnemy.x + size[0] / 2, otherEnemy.y + size[1] / 2);
-                enemies.splice(k, 1);
-                currentKills++;
-              }
-            }
-          }
-
-          if (shot.type === 'chain' && shot.jumpsLeft > 0) {
-            shot.jumpsLeft--;
-            enemies.splice(j, 1);
-            currentKills++;
-
-            let nextTarget = null;
-            let minDistance = Infinity;
-            for (let k = 0; k < enemies.length; k++) {
-              const otherEnemy = enemies[k];
-              const dist = Math.hypot(shot.x - otherEnemy.x, shot.y - otherEnemy.y);
-              if (dist < minDistance) {
-                minDistance = dist;
-                nextTarget = otherEnemy;
-              }
-            }
-
-            if (nextTarget) {
-              const angle = Math.atan2(nextTarget.y - shot.y, nextTarget.x - shot.x);
-              shot.vx = Math.cos(angle) * shotSpeed;
-              shot.vy = Math.sin(angle) * shotSpeed;
-            } else {
-              shots.splice(i, 1);
-            }
-          } else {
-            shots.splice(i, 1);
-          }
+          shots.splice(i, 1);
 
           enemies.splice(j, 1);
           currentKills++;
           bestKills = Math.max(bestKills, currentKills);
-
-          if (currentKills > 0 && currentKills % 10 === 0) {
-            setTimeout(spawnPowerUp, 1000);
+          if (currentKills > 0 && currentKills % 1 === 0) {
+            spawnShieldItem(enemy.x, enemy.y);
           }
+
           break;
         }
       }
@@ -484,8 +524,13 @@ function render() {
 
       // Player collision with boss
       if (cTenth < boss.x + boss.width && cTenth + size[0] > boss.x && flyHeight < boss.y + boss.height && flyHeight + size[1] > boss.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          boss = null;
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
@@ -544,8 +589,13 @@ function render() {
 
       // Player collision with boss2
       if (cTenth < boss2.x + boss2.width && cTenth + size[0] > boss2.x && flyHeight < boss2.y + boss2.height && flyHeight + size[1] > boss2.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          boss2 = null;
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
@@ -604,28 +654,36 @@ function render() {
 
       // Player collision with boss3
       if (cTenth < boss3.x + boss3.width && cTenth + size[0] > boss3.x && flyHeight < boss3.y + boss3.height && flyHeight + size[1] > boss3.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          boss3 = null;
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
     // If bossMode is active and boss is not yet spawned, spawn it or handle post-boss delay
     // Handle initial boss spawn
-    if (currentScore === 5 && !bossMode && !postBossDelayActive && !bossDefeated) {
+    if (currentScore === 60 && !bossMode && !postBossDelayActive && !bossDefeated) {
       bossMode = true;
       bossEntryDelay = 60; // Initial boss entry delay
+      pipes = []; // Clear all pipes immediately
     }
 
     // Handle initial boss2 spawn
-    if (currentScore === 10 && !boss2Mode && !postBoss2DelayActive && !boss2Defeated) {
+    if (currentScore === 120 && !boss2Mode && !postBoss2DelayActive && !boss2Defeated) {
       boss2Mode = true;
       boss2EntryDelay = 60; // Initial boss2 entry delay
+      pipes = []; // Clear all pipes immediately
     }
 
     // Handle initial boss3 spawn
-    if (currentScore === 15 && !boss3Mode && !postBoss3DelayActive && !boss3Defeated) {
+    if (currentScore === 180 && !boss3Mode && !postBoss3DelayActive && !boss3Defeated) {
       boss3Mode = true;
       boss3EntryDelay = 60; // Initial boss3 entry delay
+      pipes = []; // Clear all pipes immediately
     }
 
     // Handle boss entry animation
@@ -723,8 +781,13 @@ function render() {
       }
 
       if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          bossShots.splice(i, 1);
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
@@ -748,8 +811,13 @@ function render() {
       }
 
       if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          boss2Shots.splice(i, 1);
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
@@ -773,8 +841,13 @@ function render() {
       }
 
       if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          boss3Shots.splice(i, 1);
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
@@ -798,8 +871,13 @@ function render() {
       }
 
       if (cTenth < shot.x + shot.width && cTenth + size[0] > shot.x && flyHeight < shot.y + shot.height && flyHeight + size[1] > shot.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          boss3Shots.splice(i, 1);
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     }
 
@@ -836,12 +914,10 @@ function render() {
         ctx.fillStyle = 'blue';
       } else if (item.type === 'spread') {
         ctx.fillStyle = 'green';
-      } else if (item.type === 'explosive') {
-        ctx.fillStyle = 'orange';
-      } else if (item.type === 'chain') {
-        ctx.fillStyle = 'teal';
       } else if (item.type === 'bouncing') {
         ctx.fillStyle = 'yellow';
+      } else if (item.type === 'shield') {
+        ctx.fillStyle = '#ADD8E6';
       }
 
       ctx.beginPath();
@@ -849,21 +925,20 @@ function render() {
       ctx.fill();
 
       ctx.fillStyle = 'black';
-      ctx.font = "bold 15px courier";
+      ctx.font = "bold 30px courier";
       ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
       let symbol = '';
       if (item.type === 'double') {
         symbol = 'D';
       } else if (item.type === 'spread') {
-        symbol = 'S';
-      } else if (item.type === 'explosive') {
-        symbol = 'E';
-      } else if (item.type === 'chain') {
-        symbol = 'C';
+        symbol = 'T';
       } else if (item.type === 'bouncing') {
         symbol = 'B';
+      } else if (item.type === 'shield') {
+        symbol = 'S';
       }
-      ctx.fillText(symbol, item.x + item.width / 2, item.y + item.height / 2 + 5);
+      ctx.fillText(symbol, item.x + item.width / 2, item.y + item.height / 2);
 
       if (item.x + item.width < 0) {
         items.splice(i, 1);
@@ -877,8 +952,12 @@ function render() {
         flyHeight + size[1] > item.y
       ) {
         items.splice(i, 1);
-        currentPowerUp = item.type;
-        powerUpStartScore = currentScore;
+        if (item.type === 'shield') {
+          hasShield = true;
+        } else {
+          currentPowerUp = item.type;
+          powerUpStartScore = currentScore;
+        }
       }
     }
   } else {
@@ -894,28 +973,27 @@ function render() {
   // Pipes
   if (gamePlaying) {
     pipes.forEach((pipe, i) => {
-      pipe[0] -= displaySpeed;
+      if (!bossMode && !boss2Mode && !boss3Mode) {
+        pipe[0] -= displaySpeed;
+      }
       ctx.drawImage(alienimg, 409, 250 - pipe[1], pipeWidth, pipe[1], pipe[0], 0, pipeWidth, pipe[1]);
       ctx.drawImage(alienimg, 413 + pipeWidth, 108, pipeWidth, canvas.height - pipe[1] + pipeGap, pipe[0], pipe[1] + pipeGap, pipeWidth, canvas.height - pipe[1] + pipeGap);
 
       // Only add new pipes if not in boss mode and less than 5 pipes have entered (or if boss is defeated)
-      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss2DelayActive && !postBoss3DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 5) && pipe[0] <= -pipeWidth) {
+      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss2DelayActive && !postBoss3DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 60) && pipe[0] <= -pipeWidth) {
         currentScore++;
         pipesEntered++;
         bestScore = Math.max(bestScore, currentScore);
 
-        if (currentScore === 5 && !bossMode) {
-          bossMode = true;
-          bossEntryDelay = 60; // 1 second delay (60 frames per second * 1)
-        }
+        
 
-        // Spawn power-up every 30 points
-        if (currentScore > 0 && currentScore % 30 === 0) {
-          setTimeout(spawnPowerUp, 1000);
+        // Spawn weapon item every 25 points
+        if (currentScore > 0 && currentScore % 25 === 0) {
+          setTimeout(spawnWeaponItem, 1000);
         }
 
         // Speed increase every 20 points
-        if (currentScore % 20 === 0) {
+        if (currentScore % 20 === 0 && currentScore !== 60 && currentScore !== 120 && currentScore !== 180) {
           speed += speedIncreaseAmount;
           if (currentScore >= 80) enemySpeed += enemySpeedIncreaseAmount;
           showSpeedUpAd = true;
@@ -926,8 +1004,12 @@ function render() {
       }
 
       if ([pipe[0] <= cTenth + size[0], pipe[0] + pipeWidth >= cTenth, pipe[1] > flyHeight || pipe[1] + pipeGap < flyHeight + size[1]].every(Boolean)) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+        } else {
+          gamePlaying = false;
+          setup();
+        }
       }
     });
   }
@@ -969,6 +1051,13 @@ function render() {
         } else {
           ctx.drawImage(enemy1Img, 0, 0, enemy1Img.width, enemy1Img.height, e.x, e.y, size[0], size[0] * (enemy1Img.height / enemy1Img.width));
         }
+      } else if (e.type === 'enemy4') { // New enemy4 rendering and movement
+        e.x += e.vx;
+        e.y += e.vy;
+        if (e.y <= 0 || e.y + size[1] >= canvas.height) e.vy *= -1; // Bounce off top/bottom
+        if (enemy1Img.width > 0 && enemy1Img.height > 0) { // Use enemy1Img
+          ctx.drawImage(enemy1Img, 0, 0, enemy1Img.width, enemy1Img.height, e.x, e.y, size[0], size[0] * (enemy1Img.height / enemy1Img.width));
+        }
       }
 
       // Remove off-screen
@@ -979,8 +1068,13 @@ function render() {
 
       // Collision
       if (cTenth < e.x + size[0] && cTenth + size[0] > e.x && flyHeight < e.y + size[1] && flyHeight + size[1] > e.y) {
-        gamePlaying = false;
-        setup();
+        if (hasShield) {
+          hasShield = false;
+          enemies.splice(i, 1);
+        } else {
+          gamePlaying = false;
+          setup();
+        }
         break;
       }
     }
@@ -1020,7 +1114,7 @@ function fireShot() {
   const shot = {
     x: cTenth + size[0],
     y: flyHeight + size[1] / 2,
-    width: 10,
+    width: 8,
     height: 10,
     type: shotType,
     vx: shotSpeedValue,
@@ -1036,10 +1130,6 @@ function fireShot() {
     shots.push(shot);
     shots.push({ ...shot, y: shot.y - 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
     shots.push({ ...shot, y: shot.y + 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
-  } else if (currentPowerUp === 'explosive') {
-    shots.push({ ...shot, type: 'explosive' });
-  } else if (currentPowerUp === 'chain') {
-    shots.push({ ...shot, type: 'chain', jumpsLeft: 2 });
   } else if (currentPowerUp === 'bouncing') {
     shots.push({ ...shot, type: 'bouncing', vy: (Math.random() - 0.5) * 4 });
   }
