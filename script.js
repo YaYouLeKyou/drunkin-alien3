@@ -39,6 +39,10 @@ let jump = -5.75;
 const cTenth = canvas.width / 20;
 let thrustAmount = 0.4;
 
+let isShooting = false;
+let shootInterval = 10; // frames between shots
+let shootTimer = 0;
+
 // Speed-up message
 let showSpeedUpAd = false;
 let speedUpAdTimer = 0;
@@ -72,10 +76,13 @@ const powerUpTypes = ['double', 'spread', 'explosive', 'chain', 'bouncing'];
 let powerUpStartScore = -1;
 let boss = null;
 let bossShots = [];
+let boss1ShotCount = 0;
 let boss2 = null; // New
 let boss2Shots = []; // New
+let boss2ShotCount = 0;
 let boss3 = null; // New
 let boss3Shots = []; // New
+let boss3ShotCount = 0;
 
 // --- Power-up spawn timer ---
 function spawnPowerUp() {
@@ -192,6 +199,9 @@ function setup() {
   boss3EntryDelay = 0; // New
   postBoss3DelayActive = false; // New
   boss3Defeated = false; // New
+  boss1ShotCount = 0;
+  boss2ShotCount = 0;
+  boss3ShotCount = 0;
 }
 
 // --- Spawn functions ---
@@ -247,6 +257,14 @@ function render() {
       gamePlaying = false; setup();
     }
 
+    if (isShooting) {
+      shootTimer--;
+      if (shootTimer <= 0) {
+        fireShot();
+        shootTimer = shootInterval;
+      }
+    }
+
     // Shots
     for (let i = shots.length - 1; i >= 0; i--) {
       const shot = shots[i];
@@ -287,7 +305,13 @@ function render() {
       if (boss && shot.x < boss.x + boss.width && shot.x + shot.width > boss.x && shot.y < boss.y + boss.height && shot.y + shot.height > boss.y) {
         shots.splice(i, 1);
         boss.hp--;
+        boss1ShotCount++;
         createExplosion(shot.x, shot.y);
+
+        if (boss1ShotCount % 100 === 0) {
+          boss.maxHp += 100;
+          boss.hp += 100;
+        }
 
         if (boss.hp <= 0) {
           createExplosion(boss.x + boss.width / 2, boss.y + boss.height / 2, 50);
@@ -305,7 +329,13 @@ function render() {
       if (boss2 && shot.x < boss2.x + boss2.width && shot.x + shot.width > boss2.x && shot.y < boss2.y + boss2.height && shot.y + shot.height > boss2.y) {
         shots.splice(i, 1);
         boss2.hp--;
+        boss2ShotCount++;
         createExplosion(shot.x, shot.y);
+
+        if (boss2ShotCount % 100 === 0) {
+          boss2.maxHp += 100;
+          boss2.hp += 100;
+        }
 
         if (boss2.hp <= 0) {
           createExplosion(boss2.x + boss2.width / 2, boss2.y + boss2.height / 2, 50);
@@ -323,7 +353,13 @@ function render() {
       if (boss3 && shot.x < boss3.x + boss3.width && shot.x + shot.width > boss3.x && shot.y < boss3.y + boss3.height && shot.y + shot.height > boss3.y) {
         shots.splice(i, 1);
         boss3.hp--;
+        boss3ShotCount++;
         createExplosion(shot.x, shot.y);
+
+        if (boss3ShotCount % 100 === 0) {
+          boss3.maxHp += 100;
+          boss3.hp += 100;
+        }
 
         if (boss3.hp <= 0) {
           createExplosion(boss3.x + boss3.width / 2, boss3.y + boss3.height / 2, 50);
@@ -433,7 +469,7 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 5; // Adjust as needed
+        const bossShotSpeed = 4; // Adjust as needed
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         bossShots.push({ x: boss.x, y: boss.y + boss.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -493,7 +529,7 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 6; // Slightly faster shots for boss2
+        const bossShotSpeed = 5; // Slightly faster shots for boss2
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         boss2Shots.push({ x: boss2.x, y: boss2.y + boss2.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -553,7 +589,7 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 7; // Slightly faster shots for boss3
+        const bossShotSpeed = 5; // Slightly faster shots for boss3
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         boss3Shots.push({ x: boss3.x, y: boss3.y + boss3.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -863,7 +899,7 @@ function render() {
       ctx.drawImage(alienimg, 413 + pipeWidth, 108, pipeWidth, canvas.height - pipe[1] + pipeGap, pipe[0], pipe[1] + pipeGap, pipeWidth, canvas.height - pipe[1] + pipeGap);
 
       // Only add new pipes if not in boss mode and less than 5 pipes have entered (or if boss is defeated)
-      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss2DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 5) && pipe[0] <= -pipeWidth) {
+      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss2DelayActive && !postBoss3DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 5) && pipe[0] <= -pipeWidth) {
         currentScore++;
         pipesEntered++;
         bestScore = Math.max(bestScore, currentScore);
@@ -897,7 +933,7 @@ function render() {
   }
 
   // Enemy spawn
-  if (gamePlaying && !bossMode && !postBossDelayActive) {
+  if (gamePlaying && !bossMode && !postBossDelayActive && !boss2Mode && !postBoss3DelayActive) {
     enemySpawnTimer--;
     if (enemySpawnTimer <= 0) {
       spawnEnemy(getEnemyType(currentScore));
@@ -977,76 +1013,60 @@ function startGameIfReady() {
   }
 }
 
+function fireShot() {
+  let shotSpeedValue = shotSpeed;
+  let shotType = currentPowerUp;
+
+  const shot = {
+    x: cTenth + size[0],
+    y: flyHeight + size[1] / 2,
+    width: 10,
+    height: 10,
+    type: shotType,
+    vx: shotSpeedValue,
+    vy: 0
+  };
+
+  if (currentPowerUp === 'default') {
+    shots.push(shot);
+  } else if (currentPowerUp === 'double') {
+    shots.push({ ...shot, y: shot.y - 5 });
+    shots.push({ ...shot, y: shot.y + 5 });
+  } else if (currentPowerUp === 'spread') {
+    shots.push(shot);
+    shots.push({ ...shot, y: shot.y - 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
+    shots.push({ ...shot, y: shot.y + 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
+  } else if (currentPowerUp === 'explosive') {
+    shots.push({ ...shot, type: 'explosive' });
+  } else if (currentPowerUp === 'chain') {
+    shots.push({ ...shot, type: 'chain', jumpsLeft: 2 });
+  } else if (currentPowerUp === 'bouncing') {
+    shots.push({ ...shot, type: 'bouncing', vy: (Math.random() - 0.5) * 4 });
+  }
+}
+
 // --- Controls ---
 document.addEventListener("mousedown", () => {
   if (gamePlaying) {
-    let shotSpeedValue = shotSpeed;
-    let shotType = currentPowerUp;
-
-    const shot = {
-      x: cTenth + size[0],
-      y: flyHeight + size[1] / 2,
-      width: 10,
-      height: 10,
-      type: shotType,
-      vx: shotSpeedValue,
-      vy: 0
-    };
-
-    if (currentPowerUp === 'default') {
-      shots.push(shot);
-    } else if (currentPowerUp === 'double') {
-      shots.push({ ...shot, y: shot.y - 5 });
-      shots.push({ ...shot, y: shot.y + 5 });
-    } else if (currentPowerUp === 'spread') {
-      shots.push(shot);
-      shots.push({ ...shot, y: shot.y - 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
-      shots.push({ ...shot, y: shot.y + 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
-    } else if (currentPowerUp === 'explosive') {
-      shots.push({ ...shot, type: 'explosive' });
-    } else if (currentPowerUp === 'chain') {
-      shots.push({ ...shot, type: 'chain', jumpsLeft: 2 });
-    } else if (currentPowerUp === 'bouncing') {
-      shots.push({ ...shot, type: 'bouncing', vy: (Math.random() - 0.5) * 4 });
-    }
+    isShooting = true;
+    fireShot(); // Fire immediately on click
   }
   gamePlaying = true;
   isThrusting = true;
 });
-document.addEventListener("mouseup", () => { isThrusting = false; });
+document.addEventListener("mouseup", () => {
+  isShooting = false;
+  isThrusting = false;
+});
 document.addEventListener("touchstart", () => {
   if (gamePlaying) {
-    let shotSpeedValue = shotSpeed;
-    let shotType = currentPowerUp;
-
-    const shot = {
-      x: cTenth + size[0],
-      y: flyHeight + size[1] / 2,
-      width: 10,
-      height: 10,
-      type: shotType,
-      vx: shotSpeedValue,
-      vy: 0
-    };
-
-    if (currentPowerUp === 'default') {
-      shots.push(shot);
-    } else if (currentPowerUp === 'double') {
-      shots.push({ ...shot, y: shot.y - 5 });
-      shots.push({ ...shot, y: shot.y + 5 });
-    } else if (currentPowerUp === 'spread') {
-      shots.push(shot);
-      shots.push({ ...shot, y: shot.y - 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
-      shots.push({ ...shot, y: shot.y + 10, x: shot.x - 5, vx: shotSpeedValue * 0.9 });
-    } else if (currentPowerUp === 'explosive') {
-      shots.push({ ...shot, type: 'explosive' });
-    } else if (currentPowerUp === 'chain') {
-      shots.push({ ...shot, type: 'chain', jumpsLeft: 2 });
-    } else if (currentPowerUp === 'bouncing') {
-      shots.push({ ...shot, type: 'bouncing', vy: (Math.random() - 0.5) * 4 });
-    }
+    isShooting = true;
+    fireShot(); // Fire immediately on touch
   }
   gamePlaying = true;
   isThrusting = true;
 });
-document.addEventListener("touchend", () => { isThrusting = false; });
+document.addEventListener("touchend", () => {
+  isShooting = false;
+  isThrusting = false;
+});
