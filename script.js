@@ -97,7 +97,7 @@ function spawnPowerUp() {
 }
 
 // --- Weapon Item spawn ---
-function spawnWeaponItem() {
+function spawnWeaponItem(x) {
   const middleY = canvas.height / 2;
   const halfItemHeight = itemHeight / 2;
   const verticalOffset = 70; // How far from the absolute middle the "high" or "low" can be
@@ -116,7 +116,7 @@ function spawnWeaponItem() {
 
   // For now, let's make it grant a random power-up type
   const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
-  items.push({ x: canvas.width, y, type: type, width: itemWidth, height: itemHeight });
+  items.push({ x, y, type: type, width: itemWidth, height: itemHeight });
 }
 
 function spawnShieldItem(x, y) {
@@ -236,6 +236,7 @@ function setup() {
   boss3ShotCount = 0;
   lastAlternatingEnemyType = 'enemy1'; // Initialize for alternation
   hasShield = false;
+  currentPowerUp = 'default';
 }
 
 // --- Spawn functions ---
@@ -319,7 +320,7 @@ function render() {
     ctx.drawImage(alienimg, 405, Math.floor(index % 1) * size[0], ...size, cTenth, flyHeight, ...size);
     if (hasShield) {
       ctx.beginPath();
-      ctx.arc(cTenth + size[0] / 2, flyHeight + size[1] / 2, size[0] / 2 + 10, 0, 2 * Math.PI);
+      ctx.arc(cTenth + size[0] / 2 - 5, flyHeight + size[1] / 2, size[0] / 2 + 10, 0, 2 * Math.PI);
       ctx.strokeStyle = 'rgba(173, 216, 230, 0.5)';
       ctx.lineWidth = 5;
       ctx.stroke();
@@ -467,7 +468,7 @@ function render() {
           enemies.splice(j, 1);
           currentKills++;
           bestKills = Math.max(bestKills, currentKills);
-          if (currentKills > 0 && currentKills % 1 === 0) {
+          if (currentKills > 0 && currentKills % 20 === 0) {
             spawnShieldItem(enemy.x, enemy.y);
           }
 
@@ -669,7 +670,6 @@ function render() {
     if (currentScore === 60 && !bossMode && !postBossDelayActive && !bossDefeated) {
       bossMode = true;
       bossEntryDelay = 60; // Initial boss entry delay
-      pipes = []; // Clear all pipes immediately
     }
 
     // Handle initial boss2 spawn
@@ -973,9 +973,7 @@ function render() {
   // Pipes
   if (gamePlaying) {
     pipes.forEach((pipe, i) => {
-      if (!bossMode && !boss2Mode && !boss3Mode) {
-        pipe[0] -= displaySpeed;
-      }
+      pipe[0] -= displaySpeed;
       ctx.drawImage(alienimg, 409, 250 - pipe[1], pipeWidth, pipe[1], pipe[0], 0, pipeWidth, pipe[1]);
       ctx.drawImage(alienimg, 413 + pipeWidth, 108, pipeWidth, canvas.height - pipe[1] + pipeGap, pipe[0], pipe[1] + pipeGap, pipeWidth, canvas.height - pipe[1] + pipeGap);
 
@@ -989,7 +987,9 @@ function render() {
 
         // Spawn weapon item every 25 points
         if (currentScore > 0 && currentScore % 25 === 0) {
-          setTimeout(spawnWeaponItem, 1000);
+          const lastPipeX = pipes[pipes.length - 1][0];
+          const itemX = lastPipeX + pipeWidth + (pipeGap / 2) - (itemWidth / 2);
+          spawnWeaponItem(itemX);
         }
 
         // Speed increase every 20 points
