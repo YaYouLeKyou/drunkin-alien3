@@ -26,7 +26,7 @@ enemy3Img.onload = () => { enemy3ImgLoaded = true; };
 let gamePlaying = false;
 let isPaused = false; // New variable for pause state
 let animationFrameId; // To store the ID returned by requestAnimationFrame
-let gravity = 0.16;
+let gravity = 0.12;
 let initialSpeed = 4;
 let speed = initialSpeed;
 let displaySpeed = speed;
@@ -37,7 +37,7 @@ let enemySpeed = initialEnemySpeed;
 const enemySpeedIncreaseAmount = 0.1;
 
 const size = [51, 30];
-let jump = -5.75;
+let jump = -4.5;
 const cTenth = canvas.width / 20;
 let thrustAmount = 0.4;
 
@@ -53,9 +53,9 @@ const speedUpAdDuration = 60;
 // --- Mobile adjustments ---
 const isMobile = /Mobi|Android/i.test(navigator.userAgent);
 if (isMobile) {
-  gravity = 0.046;
-  jump = -1.0;
-  initialSpeed = 3;
+  gravity = 0.036;
+  jump = -0.8;
+  initialSpeed = 2.5;
   initialEnemySpeed = 2;
   thrustAmount = 0.2;
   speed = initialSpeed;
@@ -742,14 +742,12 @@ function render() {
     if (currentScore === 120 && !boss2Mode && !postBoss2DelayActive && !boss2Defeated) {
       boss2Mode = true;
       boss2EntryDelay = 60; // Initial boss2 entry delay
-      pipes = []; // Clear all pipes immediately
     }
 
     // Handle initial boss3 spawn
     if (currentScore === 180 && !boss3Mode && !postBoss3DelayActive && !boss3Defeated) {
       boss3Mode = true;
       boss3EntryDelay = 60; // Initial boss3 entry delay
-      pipes = []; // Clear all pipes immediately
     }
 
     // Handle boss entry animation
