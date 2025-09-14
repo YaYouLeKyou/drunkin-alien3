@@ -21,6 +21,23 @@ header {
   margin: 0 auto;
   width: 431px;
 }
+
+#pauseButton {
+  display: block;
+  margin: 10px auto;
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: "Press Start 2P", cursive;
+}
+
+#pauseButton:hover {
+  background-color: #45a049;
+}
 h1 {
   background: url(./media/drunkinalien2.png) 34% -600px;
   padding: 1.2rem 0;

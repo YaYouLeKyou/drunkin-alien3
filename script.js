@@ -24,6 +24,8 @@ enemy3Img.onload = () => { enemy3ImgLoaded = true; };
 
 // --- General settings ---
 let gamePlaying = false;
+let isPaused = false; // New variable for pause state
+let animationFrameId; // To store the ID returned by requestAnimationFrame
 let gravity = 0.16;
 let initialSpeed = 4;
 let speed = initialSpeed;
@@ -345,6 +347,12 @@ function getEnemyType(score) {
 
 // --- Main render loop ---
 function render() {
+  if (isPaused) {
+    // If paused, don't update game state, just keep the current frame displayed
+    animationFrameId = requestAnimationFrame(render); // Keep requesting animation frame to check for unpause
+    return;
+  }
+
   index++;
   displaySpeed += (speed - displaySpeed) * 0.005;
 
@@ -565,7 +573,8 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 3; // Adjust as needed
+        const bossShotSpeedValue = isMobile ? 1.5 : 3; // Adjust as needed for mobile
+        const bossShotSpeed = bossShotSpeedValue;
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         bossShots.push({ x: boss.x, y: boss.y + boss.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -630,7 +639,8 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 3; // Slightly faster shots for boss2
+        const bossShotSpeedValue = isMobile ? 1.5 : 3; // Slightly faster shots for boss2
+        const bossShotSpeed = bossShotSpeedValue;
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         boss2Shots.push({ x: boss2.x, y: boss2.y + boss2.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -695,7 +705,8 @@ function render() {
         const dx = targetX - bossShotX;
         const dy = targetY - bossShotY;
         const angle = Math.atan2(dy, dx);
-        const bossShotSpeed = 3; // Slightly faster shots for boss3
+        const bossShotSpeedValue = isMobile ? 1.5 : 3; // Slightly faster shots for boss3
+        const bossShotSpeed = bossShotSpeedValue;
         const vx = Math.cos(angle) * bossShotSpeed;
         const vy = Math.sin(angle) * bossShotSpeed;
         boss3Shots.push({ x: boss3.x, y: boss3.y + boss3.height / 2, width: 15, height: 15, vx: vx, vy: vy });
@@ -1033,7 +1044,7 @@ function render() {
       ctx.drawImage(alienimg, 413 + pipeWidth, 108, pipeWidth, canvas.height - pipe[1] + pipeGap, pipe[0], pipe[1] + pipeGap, pipeWidth, canvas.height - pipe[1] + pipeGap);
 
       // Only add new pipes if not in boss mode and less than 5 pipes have entered (or if boss is defeated)
-      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss2DelayActive && !postBoss3DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 60) && pipe[0] <= -pipeWidth) {
+      if (!bossMode && !postBossDelayActive && !boss2Mode && !postBoss3DelayActive && (bossDefeated || boss2Defeated || pipesEntered < 60) && pipe[0] <= -pipeWidth) {
         currentScore++;
         pipesEntered++;
         bestScore = Math.max(bestScore, currentScore);
@@ -1182,14 +1193,14 @@ function render() {
     ctx.fill();
   }
 
-  requestAnimationFrame(render);
+  animationFrameId = requestAnimationFrame(render);
 }
 
 // --- Start game if images loaded ---
 function startGameIfReady() {
   if (mainImgLoaded && enemy1ImgLoaded && enemy2ImgLoaded) {
     setup();
-    render();
+    animationFrameId = requestAnimationFrame(render);
   }
 }
 
@@ -1227,12 +1238,14 @@ document.addEventListener("mousedown", () => {
     firstClickDone = true;
     showMessageWithDuration("Level 1", "Start!", "white", 120); // Display for 2 seconds
   }
-  if (gamePlaying) {
+  if (gamePlaying && !isPaused) { // Only allow shooting if not paused
     isShooting = true;
     fireShot(); // Fire immediately on click
   }
-  gamePlaying = true;
-  isThrusting = true;
+  if (!isPaused) { // Only start game if not paused
+    gamePlaying = true;
+    isThrusting = true;
+  }
 });
 document.addEventListener("mouseup", () => {
   isShooting = false;
@@ -1243,14 +1256,38 @@ document.addEventListener("touchstart", () => {
     firstClickDone = true;
     showMessageWithDuration("Level 1", "Start!", "white", 120); // Display for 2 seconds
   }
-  if (gamePlaying) {
+  if (gamePlaying && !isPaused) { // Only allow shooting if not paused
     isShooting = true;
     fireShot(); // Fire immediately on touch
   }
-  gamePlaying = true;
-  isThrusting = true;
+  if (!isPaused) { // Only start game if not paused
+    gamePlaying = true;
+    isThrusting = true;
+  }
 });
 document.addEventListener("touchend", () => {
   isShooting = false;
   isThrusting = false;
 });
+
+// Pause button functionality
+const pauseButton = document.getElementById("pauseButton");
+pauseButton.addEventListener("click", togglePause);
+
+function togglePause() {
+  isPaused = !isPaused;
+  if (isPaused) {
+    cancelAnimationFrame(animationFrameId); // Stop the game loop
+    pauseButton.textContent = "Resume";
+    // Optionally draw a "PAUSED" overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center";
+    ctx.font = "bold 50px Arial";
+    ctx.fillStyle = "white";
+    ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2);
+  } else {
+    animationFrameId = requestAnimationFrame(render); // Resume the game loop
+    pauseButton.textContent = "Pause";
+  }
+}
